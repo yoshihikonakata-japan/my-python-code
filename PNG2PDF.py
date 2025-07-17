@@ -1,43 +1,45 @@
-import os
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+PNG→PDFバッチ変換ツール
+"""
+
+import logging
+from pathlib import Path
 from PIL import Image
+import click
 
-def convert_png_to_pdf(png_folder, pdf_folder):
+# ログ設定
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+@click.command(context_settings=dict(help_option_names=["-h", "--help"]))
+@click.argument("png_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.argument("pdf_dir", type=click.Path(file_okay=False, path_type=Path))
+def main(png_dir: Path, pdf_dir: Path):
     """
-    指定されたフォルダ内のすべてのPNGファイルをPDFに変換し、
-    別のフォルダに保存します。
+    指定フォルダ内の全PNGをPDFに変換し、出力フォルダへ保存します。
 
-    Args:
-        png_folder (str): PNGファイルが保存されているフォルダのパス。
-        pdf_folder (str): 変換されたPDFファイルを保存するフォルダのパス。
+    \b
+    Arguments:
+      PNG_DIR  変換元PNGフォルダのパス
+      PDF_DIR  出力先PDFフォルダのパス
     """
-    if not os.path.exists(pdf_folder):
-        os.makedirs(pdf_folder)
-        print(f"PDF保存フォルダ '{pdf_folder}' を作成しました。")
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    png_files = list(png_dir.glob("*.png"))
+    if not png_files:
+        logging.warning("⚠ PNGファイルが見つかりませんでした。")
+        return
 
-    for filename in os.listdir(png_folder):
-        if filename.lower().endswith('.png'):
-            png_path = os.path.join(png_folder, filename)
-            # 拡張子を除いたファイル名を取得
-            name_without_ext = os.path.splitext(filename)[0]
-            pdf_path = os.path.join(pdf_folder, f"{name_without_ext}.pdf")
-
+    with click.progressbar(png_files, label="Converting") as bar:
+        for png_path in bar:
+            pdf_path = pdf_dir / f"{png_path.stem}.pdf"
             try:
-                # PNGファイルを開く
                 with Image.open(png_path) as img:
-                    # RGBモードに変換 (一部のPNGがCMYKなどの場合に対応)
-                    if img.mode == 'RGBA':
-                        img = img.convert('RGB')
-                    
-                    # PDFとして保存
-                    img.save(pdf_path)
-                print(f"'{filename}' を '{os.path.basename(pdf_path)}' に変換しました。")
+                    # モードに関係なく RGB 変換してから保存
+                    img.convert("RGB").save(pdf_path)
+                logging.info(f"✅ {png_path.name} → {pdf_path.name}")
             except Exception as e:
-                print(f"エラー: '{filename}' の変換中に問題が発生しました - {e}")
+                logging.error(f"❌ {png_path.name}: {e}")
 
-# 設定
-png_directory = r'C:\pyPDF\png'
-pdf_directory = r'C:\pyPDF\pdf'
-
-# 関数を実行
 if __name__ == "__main__":
-    convert_png_to_pdf(png_directory, pdf_directory)
+    main()
