@@ -1,45 +1,70 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PNG→PDFバッチ変換ツール
-"""
+PNG→PDF 一括変換ツール
 
+指定フォルダ内のすべてのPNGをPDFに変換し、出力フォルダに保存します。
+省略時:
+  PNG_DIR = C:/pyPDF/png
+  PDF_DIR = C:/pyPDF/pdf
+"""
+import argparse
 import logging
+import sys
 from pathlib import Path
 from PIL import Image
-import click
 
-# ログ設定
-logging.basicConfig(level=logging.INFO, format="%(message)s")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="指定フォルダ内のPNGをPDFに変換して出力フォルダへ保存します。",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        "png_dir",
+        nargs="?",
+        type=Path,
+        default=Path("C:/pyPDF/png"),
+        metavar="PNG_DIR",
+        help="変換元PNGフォルダのパス（デフォルト: C:/pyPDF/png）"
+    )
+    parser.add_argument(
+        "pdf_dir",
+        nargs="?",
+        type=Path,
+        default=Path("C:/pyPDF/pdf"),
+        metavar="PDF_DIR",
+        help="出力先PDFフォルダのパス（デフォルト: C:/pyPDF/pdf）"
+    )
+    return parser.parse_args()
 
-@click.command(context_settings=dict(help_option_names=["-h", "--help"]))
-@click.argument("png_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
-@click.argument("pdf_dir", type=click.Path(file_okay=False, path_type=Path))
-def main(png_dir: Path, pdf_dir: Path):
-    """
-    指定フォルダ内の全PNGをPDFに変換し、出力フォルダへ保存します。
 
-    \b
-    Arguments:
-      PNG_DIR  変換元PNGフォルダのパス
-      PDF_DIR  出力先PDFフォルダのパス
-    """
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    args = parse_args()
+    png_dir: Path = args.png_dir
+    pdf_dir: Path = args.pdf_dir
+
+    if not png_dir.is_dir():
+        logging.error(f"入力フォルダが見つかりません: {png_dir}")
+        sys.exit(1)
+
     pdf_dir.mkdir(parents=True, exist_ok=True)
-    png_files = list(png_dir.glob("*.png"))
+    png_files = sorted(png_dir.glob("*.png"))
+
     if not png_files:
         logging.warning("⚠ PNGファイルが見つかりませんでした。")
-        return
+        sys.exit(0)
 
-    with click.progressbar(png_files, label="Converting") as bar:
-        for png_path in bar:
-            pdf_path = pdf_dir / f"{png_path.stem}.pdf"
-            try:
-                with Image.open(png_path) as img:
-                    # モードに関係なく RGB 変換してから保存
-                    img.convert("RGB").save(pdf_path)
-                logging.info(f"✅ {png_path.name} → {pdf_path.name}")
-            except Exception as e:
-                logging.error(f"❌ {png_path.name}: {e}")
+    total = len(png_files)
+    for idx, png_path in enumerate(png_files, start=1):
+        pdf_path = pdf_dir / f"{png_path.stem}.pdf"
+        try:
+            with Image.open(png_path) as img:
+                img.convert("RGB").save(pdf_path)
+            logging.info(f"[{idx}/{total}] ✅ {png_path.name} → {pdf_path.name}")
+        except Exception as e:
+            logging.error(f"[{idx}/{total}] ❌ {png_path.name}: {e}")
+
 
 if __name__ == "__main__":
     main()
